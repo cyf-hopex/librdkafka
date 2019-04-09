@@ -79,12 +79,15 @@ void offset_commit_cb_trampoline0 (
         rd_kafka_topic_partition_list_t *c_offsets, void *opaque);
 void oauthbearer_token_refresh_cb_trampoline (rd_kafka_t *rk, void *opaque);
 
-int ssl_cert_verify_cb_trampoline(char *cert, size_t len,
-                                  char *errstr, size_t errstr_size,
-                                  void *opaque);
-ssize_t ssl_cert_retrieve_cb_trampoline(rd_kafka_certificate_type_t type, char **buffer,
-                                       char *errstr, size_t errstr_size,
-                                       void *opaque);
+ int ssl_cert_verify_cb_trampoline (
+         rd_kafka_t *rk,
+         const char *broker_name,
+         int32_t broker_id,
+         int preverify_ok, void *x509_ctx,
+         int depth,
+         const char *buf, size_t size,
+         char *errstr, size_t errstr_size,
+         void *opaque);
 
 rd_kafka_topic_partition_list_t *
     partitions_to_c_parts (const std::vector<TopicPartition*> &partitions);
@@ -602,46 +605,29 @@ class ConfImpl : public Conf {
     return Conf::CONF_OK;
   }
 
-  Conf::ConfResult set(const std::string &name,
-                       SslCertificateVerifyCb *ssl_cert_verify_cb,
-                       std::string &errstr) {
 
-      if (name != "ssl_cert_verify_cb") {
-          errstr = "Invalid value type, expected RdKafka::SslCertificateVerifyCb";
-          return Conf::CONF_INVALID;
-      }
+  Conf::ConfResult set (const std::string &name,
+                        SslCertificateVerifyCb *ssl_cert_verify_cb,
+                        std::string &errstr) {
+    if (name != "ssl_cert_verify_cb") {
+      errstr = "Invalid value type, expected RdKafka::SslCertificateVerifyCb";
+      return Conf::CONF_INVALID;
+    }
 
-      if (!rk_conf_) {
-          errstr = "Requires RdKafka::Conf::CONF_GLOBAL object";
-          return Conf::CONF_INVALID;
-      }
+    if (!rk_conf_) {
+      errstr = "Requires RdKafka::Conf::CONF_GLOBAL object";
+      return Conf::CONF_INVALID;
+    }
 
 #ifdef __mips__
-      errstr = "Cert verify callback is not supported on MIPS";
-      return Conf::CONF_INVALID;
+    errstr = "Cert verify callback is not supported on MIPS";
+    return Conf::CONF_INVALID;
 #else
-      ssl_cert_verify_cb_ = ssl_cert_verify_cb;
-      return Conf::CONF_OK;
+    ssl_cert_verify_cb_ = ssl_cert_verify_cb;
+    return Conf::CONF_OK;
 #endif
   }
 
-  Conf::ConfResult set(const std::string &name,
-                       SslCertificateRetrieveCb *ssl_cert_retrieve_cb,
-                       std::string &errstr) {
-
-      if (name != "ssl_cert_retrieve_cb") {
-          errstr = "Invalid value type, expected RdKafka::SslCertificateRetrieveCb";
-          return Conf::CONF_INVALID;
-      }
-
-      if (!rk_conf_) {
-          errstr = "Requires RdKafka::Conf::CONF_GLOBAL object";
-          return Conf::CONF_INVALID;
-      }
-
-      ssl_cert_retrieve_cb_ = ssl_cert_retrieve_cb;
-      return Conf::CONF_OK;
-  }
 
   Conf::ConfResult get(const std::string &name, std::string &value) const {
     if (name.compare("dr_cb") == 0 ||
@@ -652,7 +638,7 @@ class ConfImpl : public Conf {
         name.compare("open_cb") == 0 ||
         name.compare("rebalance_cb") == 0 ||
         name.compare("offset_commit_cb") == 0 ||
-        name.compare("oauthbearer_token_refresh_cb") == 0 ) {
+        name.compare("oauthbearer_token_refresh_cb") == 0 ||
         name.compare("ssl_cert_verify_cb") == 0) {
       return Conf::CONF_INVALID;
     }
@@ -751,15 +737,8 @@ class ConfImpl : public Conf {
 
   Conf::ConfResult get(SslCertificateVerifyCb *&ssl_cert_verify_cb) const {
       if (!rk_conf_)
-      return Conf::CONF_INVALID;
+              return Conf::CONF_INVALID;
       ssl_cert_verify_cb = this->ssl_cert_verify_cb_;
-      return Conf::CONF_OK;
-  }
-
-  Conf::ConfResult get(SslCertificateRetrieveCb *&ssl_cert_retrieve_cb) const {
-      if (!rk_conf_)
-      return Conf::CONF_INVALID;
-      ssl_cert_retrieve_cb = this->ssl_cert_retrieve_cb_;
       return Conf::CONF_OK;
   }
 
@@ -936,7 +915,6 @@ class HandleImpl : virtual public Handle {
   OffsetCommitCb *offset_commit_cb_;
   OAuthBearerTokenRefreshCb *oauthbearer_token_refresh_cb_;
   SslCertificateVerifyCb *ssl_cert_verify_cb_;
-  SslCertificateRetrieveCb *ssl_cert_retrieve_cb_;
 };
 
 

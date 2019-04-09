@@ -2237,6 +2237,8 @@ rd_kafka_t *rd_kafka_new (rd_kafka_type_t type, rd_kafka_conf_t *app_conf,
                      builtin_features, BUILT_WITH,
                      rk->rk_conf.debug);
 
+        /* Log warnings for deprecated configuration */
+        rd_kafka_conf_warn(rk);
 
 	return rk;
 

@@ -1961,40 +1961,48 @@ void rd_kafka_conf_set_open_cb (rd_kafka_conf_t *conf,
                                                 void *opaque));
 #endif
 
-/**
-* @enum rd_kafka_certificate_type_t
-*
-* @brief Type of certificates
-*
-* @sa rd_kafka_conf_set_ssl_cert_retrieve_cb()
-*/
-typedef enum rd_kafka_certificate_type_t {
-    RD_KAFKA_CERTIFICATE_PUBLIC_KEY,        /**< Client's public key */
-    RD_KAFKA_CERTIFICATE_PRIVATE_KEY,       /**< Client's private key */
-    RD_KAFKA_CERTIFICATE_PRIVATE_KEY_PASS   /**< Password of private key */
-} rd_kafka_certificate_type_t;
 
 /**
-* @brief Sets the verification callback of the broker certificate
-
-  @remark this is not supported on the MIPS platform
-*
-*/
+ * @brief Sets the verification callback of the broker certificate
+ *
+ * The verification callback is triggered from internal librdkafka threads
+ * upon connecting to a broker. On each connection attempt the callback
+ * will be called for each certificate in the broker's certificate chain,
+ * starting at the root certification, as long as the application callback.
+ * returns 1 (valid certificate).
+ * \c broker_name and \c broker_id correlate to the broker the connection
+ * is being made to.
+ * The \c preverify_ok argument indicates if OpenSSL's verification of
+ * the certificate succeed (1) or failed (0).
+ * The certificate itself is passed in binary DER format in \c buf of
+ * size \c size.
+ * \c depth is the depth of the current certificate in the chain, starting
+ * at the root certificate.
+ * As a convenience the original OpenSSL X509_STORE_CTX object is passed
+ * in the \c x509_ctx object. If an application wishes to access this object
+ * it must ensure that it is using the same build of OpenSSL that librdkafka
+ * is using.
+ *
+ * The callback must return 1 if verification succeeds, or
+ * 0 if verification fails and then write a human-readable error message
+ * to \c errstr (limited to \c errstr_size bytes, including nul-term).
+ *
+ * @returns RD_KAFKA_CONF_OK if SSL support in this build, else
+ *          RD_KAFKA_CONF_UNKNOWN.
+ *
+ * @warning This callback will be called from internal librdkafka threads.
+ */
 RD_EXPORT
-rd_kafka_conf_res_t rd_kafka_conf_set_ssl_cert_verify_cb(rd_kafka_conf_t *conf,
-    int (*ssl_cert_verify_cb) (char *cert, size_t len,
-                               char *errstr, size_t errstr_size,
-                               void *opaque));
-
-/**
-* @brief Sets the callback to recieve the client certificate
-*
-*/
-RD_EXPORT
-rd_kafka_conf_res_t rd_kafka_conf_set_ssl_cert_retrieve_cb(rd_kafka_conf_t *conf,
-    ssize_t (*ssl_cert_retrieve_cb) (rd_kafka_certificate_type_t type, char **buffer,
-                                    char *errstr, size_t errstr_size,
-                                    void *opaque));
+rd_kafka_conf_res_t rd_kafka_conf_set_ssl_cert_verify_cb (
+        rd_kafka_conf_t *conf,
+        int (*ssl_cert_verify_cb) (rd_kafka_t *rk,
+                                   const char *broker_name,
+                                   int32_t broker_id,
+                                   int preverify_ok, void *x509_ctx,
+                                   int depth,
+                                   const char *buf, size_t size,
+                                   char *errstr, size_t errstr_size,
+                                   void *opaque));
 
 /**
  * @brief Sets the application's opaque pointer that will be passed to callbacks
